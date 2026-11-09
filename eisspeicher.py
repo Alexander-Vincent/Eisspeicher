@@ -23,7 +23,17 @@ LATENT_WAERME = 92.78         # kWh/m^3 (Gefrierwärme von Wasser, 334 kJ/kg)
 
 # Heizwärmebedarf KfW EH40-EE: typisch 25-40 kWh/(m^2*a), Planung 35
 DEFAULT_HEIZWAERMEBEDARF = 35.0   # kWh/(m^2*a) Raumwärme
-DEFAULT_TRINKWARM = 12.5          # kWh/(m^2*a) nach DIN V 4701-10
+DEFAULT_TRINKWARM = 12.5          # kWh/(m^2*a) nach DIN V 4701-10 (passend zu EH40)
+
+# Gebäudetypologie: Standard -> mittlerer Heizwärmebedarf in kWh/(m^2*a)
+GEBAEUDESTANDARDS = {
+    "KfW EH40 / EH40-EE": 35.0,
+    "KfW EH55 / EH55-EE": 45.0,
+    "Neubau nach GEG": 55.0,
+    "KfW EH70": 65.0,
+    "Bestand teilsaniert": 100.0,
+    "Bestand unsaniert": 150.0,
+}
 
 # Monatliche Verteilung des Raumwärmebedarfs (Anteile an der Jahresraumwärme)
 HEIZPERIODE_MONATE = {
@@ -46,8 +56,8 @@ class Auslegung:
     anfangstemperatur: float = 20.0   # °C, Beladung des Speichers zu Heizbeginn
     lichte_hoehe_m: float = 3.0        # m, lichte Höhe des Speichers
     nutzungsgrad: float = 0.9         # Anteil des theoretisch nutzbaren Speichers
-    netz_vorlauf_c: float = 6.0       # °C, Vorlauf des kalten Wärmenetzes
-    netz_ruecklauf_c: float = 12.0    # °C, Rücklauf des kalten Wärmenetzes
+    netz_vorlauf_c: float = 10.0      # °C, Vorlauf des kalten Wärmenetzes
+    netz_ruecklauf_c: float = 5.0     # °C, Rücklauf des kalten Wärmenetzes
     heizung_vorlauf_c: float = 35.0   # °C, Vorlauf der Gebäudeheizung (Booster-Ziel)
     guetegrad: float = 0.5            # Gütegrad der Booster-Wärmepumpen
     cop_mittel: float | None = None   # optional: fester COP statt Temperatur-Abschätzung
@@ -121,7 +131,7 @@ def bericht(a: Auslegung) -> str:
     zeilen = [
         "=== Eisspeicher-Auslegung (ohne Regeneration) ===",
         f"Beheizte Wohnfläche:            {de(a.wohnflaeche_m2)} m²",
-        f"Heizwärmebedarf (EH40-EE):      {a.heizwaermebedarf:.1f} kWh/(m²·a)",
+        f"Heizwärmebedarf:                {a.heizwaermebedarf:.1f} kWh/(m²·a)",
         f"Jahres-Raumwärmebedarf:         {de(a.jahres_raumwaerme_kwh/1e6, 3)} GWh",
         f"Jahres-Trinkwarmwasser:         {de(a.jahres_trinkwarm_kwh/1e3)} MWh",
         f"Wärmebedarf Heizperiode:        {de(a.winter_waermebedarf_kwh/1e6, 3)} GWh",
@@ -150,8 +160,10 @@ def main() -> None:
     )
     p.add_argument("--wohnflaeche", type=float, default=40000.0,
                    help="beheizte Wohnfläche in m² (Default: 40000)")
-    p.add_argument("--heizwaermebedarf", type=float, default=DEFAULT_HEIZWAERMEBEDARF,
-                   help="kWh/(m²·a), KfW EH40-EE typisch 25-40 (Default: 35)")
+    p.add_argument("--standard", choices=list(GEBAEUDESTANDARDS), default=None,
+                   help="Gebäudestandard; setzt den Heizwärmebedarf, falls nicht explizit angegeben")
+    p.add_argument("--heizwaermebedarf", type=float, default=None,
+                   help="kWh/(m²·a), KfW EH40-EE typisch 25-40 (Default: Wert des Standards bzw. 35)")
     p.add_argument("--trinkwarmwasser", type=float, default=DEFAULT_TRINKWARM,
                    help="kWh/(m²·a) (Default: 12.5)")
     p.add_argument("--anfangstemperatur", type=float, default=20.0,
@@ -160,10 +172,10 @@ def main() -> None:
                    help="lichte Höhe des Speichers in m (Default: 3)")
     p.add_argument("--nutzungsgrad", type=float, default=0.9,
                    help="nutzbarer Anteil des Speichers (Default: 0.9)")
-    p.add_argument("--netz-vorlauf", type=float, default=6.0,
-                   help="Vorlauftemperatur kaltes Wärmenetz in °C (Default: 6)")
-    p.add_argument("--netz-ruecklauf", type=float, default=12.0,
-                   help="Rücklauftemperatur kaltes Wärmenetz in °C (Default: 12)")
+    p.add_argument("--netz-vorlauf", type=float, default=10.0,
+                   help="Vorlauftemperatur kaltes Wärmenetz in °C (Default: 10)")
+    p.add_argument("--netz-ruecklauf", type=float, default=5.0,
+                   help="Rücklauftemperatur kaltes Wärmenetz in °C (Default: 5)")
     p.add_argument("--heizung-vorlauf", type=float, default=35.0,
                    help="Vorlauftemperatur der Gebäudeheizung in °C (Default: 35)")
     p.add_argument("--guetegrad", type=float, default=0.5,
@@ -172,9 +184,16 @@ def main() -> None:
                    help="optional: fester COP statt Abschätzung aus Temperaturen")
     args = p.parse_args()
 
+    if args.heizwaermebedarf is not None:
+        heizwaermebedarf = args.heizwaermebedarf
+    elif args.standard is not None:
+        heizwaermebedarf = GEBAEUDESTANDARDS[args.standard]
+    else:
+        heizwaermebedarf = DEFAULT_HEIZWAERMEBEDARF
+
     a = Auslegung(
         wohnflaeche_m2=args.wohnflaeche,
-        heizwaermebedarf=args.heizwaermebedarf,
+        heizwaermebedarf=heizwaermebedarf,
         trinkwarmwasser=args.trinkwarmwasser,
         anfangstemperatur=args.anfangstemperatur,
         lichte_hoehe_m=args.lichte_hoehe,

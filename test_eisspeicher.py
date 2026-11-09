@@ -1,6 +1,7 @@
 import math
 
 from eisspeicher import (
+    GEBAEUDESTANDARDS,
     Auslegung,
     LATENT_WAERME,
     TAGE_HEIZPERIODE,
@@ -62,6 +63,18 @@ def test_volumen_geometrie_und_lichte_hoehe():
     assert math.isclose(
         math.pi * (a.tank_durchmesser_m / 2) ** 2 * 3.0, a.volumen_m3
     )
+
+
+def test_gebaeudestandards():
+    assert GEBAEUDESTANDARDS["KfW EH40 / EH40-EE"] == 35.0
+    assert all(v > 0 for v in GEBAEUDESTANDARDS.values())
+
+
+def test_defaults_kaltes_netz():
+    a = Auslegung(wohnflaeche_m2=1000.0)
+    assert a.netz_vorlauf_c == 10.0
+    assert a.netz_ruecklauf_c == 5.0
+    assert math.isclose(a.quelle_mittel_c, 7.5)
 
 
 def test_bericht_enthaelt_kernwerte():
