@@ -14,6 +14,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
+import wetter
 from eisspeicher import GEBAEUDESTANDARDS, Auslegung, bericht, bericht_optimierung
 
 FELDER = [
@@ -85,8 +86,11 @@ def formular(werte: dict | None = None, fehler: str | None = None) -> str:
 {fehler_html}
 <form method="get" action="/">
 {''.join(felder)}
+<label for="plz">Postleitzahl (PLZ) für Wetterdaten (DWD / TRY)</label>
+<input id="plz" name="plz" type="text" inputmode="numeric" pattern="[0-9]{{5}}" maxlength="5" placeholder="z. B. 10115">
 <button type="submit">Berechnen</button>
 <button type="submit" name="optimieren" value="1">Optimieren (Gütegrad schätzen)</button>
+<button type="submit" name="wetter" value="1">Wetterdaten laden (PLZ)</button>
 </form>
 <script>{SYNC_SCRIPT}</script>
 </body>
@@ -108,11 +112,31 @@ def ergebnis_seite(a: Auslegung, optimieren: bool = False) -> str:
 </html>"""
 
 
+def wetter_seite(plz: str) -> str:
+    try:
+        inhalt = wetter.wetter_bericht(plz)
+    except wetter.WetterFehler as e:
+        inhalt = f"Fehler: {e}"
+    return f"""<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Eisspeicher – Wetterdaten</title>
+<style>{STYLE}</style></head>
+<body>
+<h1>Wetterdaten zur PLZ</h1>
+<pre>{html.escape(inhalt)}</pre>
+<p><a href="/">Zurück zur Auslegung</a></p>
+</body>
+</html>"""
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         query = parse_qs(urlparse(self.path).query)
         if not query:
             self._senden(formular())
+            return
+        if "wetter" in query:
+            self._senden(wetter_seite(query.get("plz", [""])[0]))
             return
         try:
             werte = {name: float(query[name][0]) for name, *_ in FELDER if name in query}
