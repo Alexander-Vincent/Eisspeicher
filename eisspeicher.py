@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import argparse
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 RHO_WASSER = 1000.0          # kg/m^3
 C_WASSER = 1.163              # Wh/(kg*K)
@@ -46,6 +46,16 @@ HEIZPERIODE_MONATE = {
     "April": 0.09,
 }
 TAGE_HEIZPERIODE = 212  # ca. 15.10. - 15.04.
+
+# Schätzung des Gütegrads aus dem Temperaturhub (Heizungs-VL minus Quelle):
+# eta = GUETE_K1 - GUETE_K2 * hub, geklemmt auf [0.30, 0.65]
+GUETE_K1 = 0.75
+GUETE_K2 = 0.01
+
+
+def schaetze_guetegrad(t_h_c: float, t_q_c: float) -> float:
+    hub = t_h_c - t_q_c
+    return min(0.65, max(0.30, GUETE_K1 - GUETE_K2 * hub))
 
 
 @dataclass
@@ -110,6 +120,30 @@ class Auslegung:
     def volumenstrom_netz_m3h(self) -> float:
         # nötiger Volumenstrom des kalten Netzes aus der Hysterese
         return self.leistung_quelle_kw / self.energie_pro_m3_netz_kwh
+
+    @property
+    def guetegrad_geschaetzt(self) -> float:
+        # erwarteter Gütegrad aus dem tatsächlichen Temperaturhub
+        return schaetze_guetegrad(self.heizung_vorlauf_c, self.quelle_c)
+
+    def optimierungs_reihe(self, vl_min: float = 30.0, vl_max: float = 50.0,
+                           schritt: float = 5.0) -> list[dict]:
+        # Zweitberechnung: Gütegrad aus dem jeweiligen Hub schätzen und
+        # Speicher neu auslegen; scan über den Heizungs-Vorlauf
+        reihe = []
+        vl = vl_min
+        while vl <= vl_max + 1e-9:
+            eta = schaetze_guetegrad(vl, self.quelle_c)
+            a2 = replace(self, heizung_vorlauf_c=vl, guetegrad=eta, cop_mittel=None)
+            reihe.append({
+                "heizung_vorlauf_c": vl,
+                "guetegrad": eta,
+                "cop": a2.cop_booster,
+                "volumen_m3": a2.volumen_m3,
+                "durchmesser_m": a2.tank_durchmesser_m,
+            })
+            vl += schritt
+        return reihe
 
     @property
     def cop_booster(self) -> float:
@@ -184,6 +218,25 @@ def bericht(a: Auslegung) -> str:
     return "\n".join(zeilen)
 
 
+def bericht_optimierung(a: Auslegung) -> str:
+    zeilen = [
+        "=== Optimierung: Gütegrad aus Temperaturhub schätzen, dann neu rechnen ===",
+        f"Gegebener Gütegrad: {a.guetegrad:.2f} -> COP {a.cop_booster:.2f}, "
+        f"Volumen {de(a.volumen_m3)} m³",
+        f"Geschätzter Gütegrad (Hub {a.heizung_vorlauf_c - a.quelle_c:.0f} K): "
+        f"{a.guetegrad_geschaetzt:.2f}",
+        "",
+        "Scan Heizungs-Vorlauf (mit geschätztem Gütegrad):",
+        f"{'VL Heizung':>10} | {'Gütegrad':>8} | {'COP':>6} | {'Volumen m³':>12} | {'Ø m':>7}",
+    ]
+    for r in a.optimierungs_reihe():
+        zeilen.append(
+            f"{r['heizung_vorlauf_c']:>9.0f} °C | {r['guetegrad']:>8.2f} | "
+            f"{r['cop']:>6.2f} | {de(r['volumen_m3']):>12} | {de(r['durchmesser_m'], 1):>7}"
+        )
+    return "\n".join(zeilen)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(
         description="Auslegung eines Eisspeichers für eine Heizperiode ohne Regeneration"
@@ -212,6 +265,8 @@ def main() -> None:
                    help="Gütegrad der Booster-Wärmepumpen (Default: 0.5)")
     p.add_argument("--cop", type=float, default=None,
                    help="optional: fester COP statt Abschätzung aus Temperaturen")
+    p.add_argument("--optimieren", action="store_true",
+                   help="zusätzlich Optimierungsscan über den Heizungs-Vorlauf ausgeben")
     args = p.parse_args()
 
     if args.heizwaermebedarf is not None:
@@ -235,6 +290,9 @@ def main() -> None:
         cop_mittel=args.cop,
     )
     print(bericht(a))
+    if args.optimieren:
+        print()
+        print(bericht_optimierung(a))
 
 
 if __name__ == "__main__":

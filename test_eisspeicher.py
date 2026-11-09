@@ -6,6 +6,7 @@ from eisspeicher import (
     LATENT_WAERME,
     TAGE_HEIZPERIODE,
     bericht,
+    schaetze_guetegrad,
 )
 
 
@@ -94,6 +95,24 @@ def test_vorlauf_muss_hoeher_als_ruecklauf_sein():
     except ValueError:
         return
     raise AssertionError("ValueError erwartet, wenn Netz-VL <= Netz-RL")
+
+
+def test_guetegrad_schaetzung():
+    assert math.isclose(schaetze_guetegrad(35.0, 10.0), 0.50)
+    assert schaetze_guetegrad(30.0, 10.0) > schaetze_guetegrad(45.0, 10.0)
+    assert 0.30 <= schaetze_guetegrad(90.0, 10.0) <= 0.65
+
+
+def test_optimierungs_reihe_zweitberechnung():
+    a = Auslegung(wohnflaeche_m2=40000.0)
+    reihe = a.optimierungs_reihe(vl_min=30.0, vl_max=40.0, schritt=5.0)
+    assert [r["heizung_vorlauf_c"] for r in reihe] == [30.0, 35.0, 40.0]
+    for r in reihe:
+        assert math.isclose(
+            r["guetegrad"], schaetze_guetegrad(r["heizung_vorlauf_c"], a.quelle_c)
+        )
+    volumen = [r["volumen_m3"] for r in reihe]
+    assert volumen == sorted(volumen), "niedrigerer Heizungs-VL -> kleineres Volumen"
 
 
 def test_bericht_enthaelt_kernwerte():

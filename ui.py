@@ -14,7 +14,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from eisspeicher import GEBAEUDESTANDARDS, Auslegung, bericht
+from eisspeicher import GEBAEUDESTANDARDS, Auslegung, bericht, bericht_optimierung
 
 FELDER = [
     ("wohnflaeche_m2", "Beheizte Wohnfläche", "m²", "40000", "1"),
@@ -86,13 +86,15 @@ def formular(werte: dict | None = None, fehler: str | None = None) -> str:
 <form method="get" action="/">
 {''.join(felder)}
 <button type="submit">Berechnen</button>
+<button type="submit" name="optimieren" value="1">Optimieren (Gütegrad schätzen)</button>
 </form>
 <script>{SYNC_SCRIPT}</script>
 </body>
 </html>"""
 
 
-def ergebnis_seite(a: Auslegung) -> str:
+def ergebnis_seite(a: Auslegung, optimieren: bool = False) -> str:
+    zusatz = f"<pre>{html.escape(bericht_optimierung(a))}</pre>" if optimieren else ""
     return f"""<!DOCTYPE html>
 <html lang="de">
 <head><meta charset="utf-8"><title>Eisspeicher – Ergebnis</title>
@@ -100,6 +102,7 @@ def ergebnis_seite(a: Auslegung) -> str:
 <body>
 <h1>Ergebnis</h1>
 <pre>{html.escape(bericht(a))}</pre>
+{zusatz}
 <p><a href="/">Neue Berechnung</a></p>
 </body>
 </html>"""
@@ -119,7 +122,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Ungültiger Gebäudestandard")
                 werte["heizwaermebedarf"] = GEBAEUDESTANDARDS[standard]
             a = Auslegung(**werte)
-            self._senden(ergebnis_seite(a))
+            self._senden(ergebnis_seite(a, optimieren="optimieren" in query))
         except (KeyError, ValueError) as e:
             self._senden(formular({k: v[0] for k, v in query.items()}, str(e)))
 
