@@ -31,10 +31,10 @@ def test_nutzbar_pro_m3_mit_anfangsbeladung():
 
 def test_cop_booster_aus_temperaturen():
     a = Auslegung(wohnflaeche_m2=1000.0,
-                  netz_vorlauf_c=6.0, netz_ruecklauf_c=12.0,
+                  netz_vorlauf_c=10.0, netz_ruecklauf_c=5.0,
                   heizung_vorlauf_c=35.0, guetegrad=0.5)
-    assert math.isclose(a.quelle_mittel_c, 9.0)
-    t_h, t_q = 35.0 + 273.15, 9.0 + 273.15
+    assert math.isclose(a.quelle_c, 10.0)
+    t_h, t_q = 35.0 + 273.15, 10.0 + 273.15
     assert math.isclose(a.cop_booster, 0.5 * t_h / (t_h - t_q))
 
 
@@ -74,7 +74,7 @@ def test_defaults_kaltes_netz():
     a = Auslegung(wohnflaeche_m2=1000.0)
     assert a.netz_vorlauf_c == 10.0
     assert a.netz_ruecklauf_c == 5.0
-    assert math.isclose(a.quelle_mittel_c, 7.5)
+    assert math.isclose(a.quelle_c, 10.0)
 
 
 def test_bericht_enthaelt_kernwerte():

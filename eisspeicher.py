@@ -82,19 +82,20 @@ class Auslegung:
         return raum + warm
 
     @property
-    def quelle_mittel_c(self) -> float:
-        # mittlere Quellentemperatur der Booster am kalten Netz
-        return (self.netz_vorlauf_c + self.netz_ruecklauf_c) / 2.0
+    def quelle_c(self) -> float:
+        # Quellentemperatur der Booster = Vorlauf des kalten Netzes;
+        # das Netz liegt konstant bei 10-15 °C, daher kein Abtauen nötig
+        return self.netz_vorlauf_c
 
     @property
     def cop_booster(self) -> float:
         if self.cop_mittel is not None:
             return self.cop_mittel
         t_h = self.heizung_vorlauf_c + 273.15
-        t_q = self.quelle_mittel_c + 273.15
+        t_q = self.quelle_c + 273.15
         if t_h <= t_q:
             raise ValueError(
-                "Heizungs-Vorlauf muss über der mittleren Netztemperatur liegen"
+                "Heizungs-Vorlauf muss über der Netz-Vorlauftemperatur liegen"
             )
         return self.guetegrad * t_h / (t_h - t_q)
 
@@ -135,8 +136,9 @@ def bericht(a: Auslegung) -> str:
         f"Jahres-Raumwärmebedarf:         {de(a.jahres_raumwaerme_kwh/1e6, 3)} GWh",
         f"Jahres-Trinkwarmwasser:         {de(a.jahres_trinkwarm_kwh/1e3)} MWh",
         f"Wärmebedarf Heizperiode:        {de(a.winter_waermebedarf_kwh/1e6, 3)} GWh",
-        f"Kaltes Netz:                    Vorlauf {a.netz_vorlauf_c:.1f} °C, "
-        f"Rücklauf {a.netz_ruecklauf_c:.1f} °C (mittel {a.quelle_mittel_c:.1f} °C)",
+        f"Kaltes Netz:                    Vorlauf {a.netz_vorlauf_c:.1f} °C (Quelle), "
+        f"Rücklauf {a.netz_ruecklauf_c:.1f} °C",
+        f"Quellentemperatur Booster:      {a.quelle_c:.1f} °C (Netz-Vorlauf)",
         f"Heizungs-Vorlauf (Booster):     {a.heizung_vorlauf_c:.1f} °C, "
         f"Gütegrad {a.guetegrad:.2f}",
         f"COP Booster (abgeschätzt):      {a.cop_booster:.2f}",

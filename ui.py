@@ -23,7 +23,7 @@ FELDER = [
     ("anfangstemperatur", "Beladung des Speichers zu Beginn der Heizperiode", "°C", "20", "0.5"),
     ("lichte_hoehe_m", "Lichte Höhe des Speichers", "m", "3", "0.1"),
     ("nutzungsgrad", "Nutzungsgrad des Speichers", "0–1", "0.9", "0.05"),
-    ("netz_vorlauf_c", "Kaltes Wärmenetz – Vorlauftemperatur", "°C", "10", "0.5"),
+    ("netz_vorlauf_c", "Kaltes Wärmenetz – Vorlauftemperatur (Quelle der Booster)", "°C", "10", "0.5"),
     ("netz_ruecklauf_c", "Kaltes Wärmenetz – Rücklauftemperatur", "°C", "5", "0.5"),
     ("heizung_vorlauf_c", "Vorlauftemperatur Gebäudeheizung (Booster-Ziel)", "°C", "35", "1"),
     ("guetegrad", "Gütegrad der Booster-Wärmepumpen", "0–1", "0.5", "0.05"),
