@@ -77,6 +77,25 @@ def test_defaults_kaltes_netz():
     assert math.isclose(a.quelle_c, 10.0)
 
 
+def test_hysterese_und_volumenstrom():
+    a = Auslegung(wohnflaeche_m2=40000.0, netz_vorlauf_c=10.0, netz_ruecklauf_c=5.0)
+    assert math.isclose(a.hysterese_c, 5.0)
+    assert math.isclose(a.energie_pro_m3_netz_kwh, 1000.0 * 1.163 * 5.0 / 1000.0)
+    assert math.isclose(
+        a.volumenstrom_netz_m3h,
+        (a.quellenenergie_kwh / (TAGE_HEIZPERIODE * 24.0)) / a.energie_pro_m3_netz_kwh,
+    )
+
+
+def test_vorlauf_muss_hoeher_als_ruecklauf_sein():
+    a = Auslegung(wohnflaeche_m2=1000.0, netz_vorlauf_c=5.0, netz_ruecklauf_c=10.0)
+    try:
+        _ = a.hysterese_c
+    except ValueError:
+        return
+    raise AssertionError("ValueError erwartet, wenn Netz-VL <= Netz-RL")
+
+
 def test_bericht_enthaelt_kernwerte():
     a = Auslegung(wohnflaeche_m2=40000.0)
     text = bericht(a)
@@ -84,3 +103,4 @@ def test_bericht_enthaelt_kernwerte():
     assert "m³" in text
     assert "COP Booster" in text
     assert "Lichte Höhe" in text
+    assert "Hysterese" in text

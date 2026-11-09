@@ -88,6 +88,30 @@ class Auslegung:
         return self.netz_vorlauf_c
 
     @property
+    def hysterese_c(self) -> float:
+        # Vorlauf muss im Heizbetrieb immer höher sein als Rücklauf
+        if self.netz_vorlauf_c <= self.netz_ruecklauf_c:
+            raise ValueError(
+                "Netz-Vorlauf muss höher als Netz-Rücklauf sein (VL > RL)"
+            )
+        return self.netz_vorlauf_c - self.netz_ruecklauf_c
+
+    @property
+    def energie_pro_m3_netz_kwh(self) -> float:
+        # Energie, die die Booster pro m³ Netzumlauf aus der Hysterese ziehen
+        return RHO_WASSER * C_WASSER * self.hysterese_c / 1000.0
+
+    @property
+    def leistung_quelle_kw(self) -> float:
+        # mittlere Quellenleistung über die Heizperiode
+        return self.quellenenergie_kwh / (TAGE_HEIZPERIODE * 24.0)
+
+    @property
+    def volumenstrom_netz_m3h(self) -> float:
+        # nötiger Volumenstrom des kalten Netzes aus der Hysterese
+        return self.leistung_quelle_kw / self.energie_pro_m3_netz_kwh
+
+    @property
     def cop_booster(self) -> float:
         if self.cop_mittel is not None:
             return self.cop_mittel
@@ -139,6 +163,10 @@ def bericht(a: Auslegung) -> str:
         f"Kaltes Netz:                    Vorlauf {a.netz_vorlauf_c:.1f} °C (Quelle), "
         f"Rücklauf {a.netz_ruecklauf_c:.1f} °C",
         f"Quellentemperatur Booster:      {a.quelle_c:.1f} °C (Netz-Vorlauf)",
+        f"Hysterese kaltes Netz (VL-RL):  {a.hysterese_c:.1f} K "
+        f"= {a.energie_pro_m3_netz_kwh:.2f} kWh pro m³ Netzumlauf",
+        f"Mittlere Quellenleistung:       {a.leistung_quelle_kw:.1f} kW",
+        f"Volumenstrom kaltes Netz:       {de(a.volumenstrom_netz_m3h, 1)} m³/h",
         f"Heizungs-Vorlauf (Booster):     {a.heizung_vorlauf_c:.1f} °C, "
         f"Gütegrad {a.guetegrad:.2f}",
         f"COP Booster (abgeschätzt):      {a.cop_booster:.2f}",
